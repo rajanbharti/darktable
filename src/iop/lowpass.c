@@ -324,11 +324,11 @@ error:
   if(g) dt_gaussian_free_cl(g);
   if(b) dt_bilateral_free_cl(b);
 
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
-  if(dev_lcoeffs != NULL) dt_opencl_release_mem_object(dev_lcoeffs);
-  if(dev_lm != NULL) dt_opencl_release_mem_object(dev_lm);
-  if(dev_ccoeffs != NULL) dt_opencl_release_mem_object(dev_ccoeffs);
-  if(dev_cm != NULL) dt_opencl_release_mem_object(dev_cm);
+  dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_lcoeffs);
+  dt_opencl_release_mem_object(dev_lm);
+  dt_opencl_release_mem_object(dev_ccoeffs);
+  dt_opencl_release_mem_object(dev_cm);
   dt_print(DT_DEBUG_OPENCL, "[opencl_lowpass] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -620,13 +620,13 @@ void init_global(dt_iop_module_so_t *module)
 
 void init_presets(dt_iop_module_so_t *self)
 {
-  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "begin", NULL, NULL, NULL);
+  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "BEGIN", NULL, NULL, NULL);
 
   dt_gui_presets_add_generic(_("local contrast mask"), self->op, self->version(),
                              &(dt_iop_lowpass_params_t){ 0, 50.0f, -1.0f, 0.0f, 0.0f, LOWPASS_ALGO_GAUSSIAN, 1 },
                              sizeof(dt_iop_lowpass_params_t), 1);
 
-  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "commit", NULL, NULL, NULL);
+  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "COMMIT", NULL, NULL, NULL);
 }
 
 void cleanup(dt_iop_module_t *module)

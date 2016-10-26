@@ -1454,12 +1454,12 @@ static cl_int_t apply_global_distortion_map_cl (struct dt_iop_module_t *module,
 
 error:
 
-  if (dev_kernel    ) dt_opencl_release_mem_object (dev_kernel);
-  if (dev_kdesc     ) dt_opencl_release_mem_object (dev_kdesc);
-  if (dev_map_extent) dt_opencl_release_mem_object (dev_map_extent);
-  if (dev_map       ) dt_opencl_release_mem_object (dev_map);
-  if (dev_roi_out   ) dt_opencl_release_mem_object (dev_roi_out);
-  if (dev_roi_in    ) dt_opencl_release_mem_object (dev_roi_in);
+  dt_opencl_release_mem_object (dev_kernel);
+  dt_opencl_release_mem_object (dev_kdesc);
+  dt_opencl_release_mem_object (dev_map_extent);
+  dt_opencl_release_mem_object (dev_map);
+  dt_opencl_release_mem_object (dev_roi_out);
+  dt_opencl_release_mem_object (dev_roi_in);
   if (k             ) free (k);
 
   return err;
@@ -2198,9 +2198,10 @@ static float find_nearest_on_line_t (const float complex p0, const float complex
  * solver. Use the GSL?)
  *
  * Here is an article that explains the math:
- * http://www.particleincell.com/blog/2012/bezier-splines/ Basically
- * we find all the ctrl1 points when we solve the linear system, then
- * we calculate each ctrl2 from the ctrl1.
+ * http://www.particleincell.com/blog/2012/bezier-splines/
+ *
+ * Basically we find all the ctrl1 points when we solve the linear
+ * system, then we calculate each ctrl2 from the ctrl1.
  *
  * We build the linear system choosing for each segment of the path an
  * equation among following 9 equations.  "Straight" is a path that
@@ -2210,30 +2211,30 @@ static float find_nearest_on_line_t (const float complex p0, const float complex
  * knot (1st and 2nd derivatives are constant around the knot.)
  * "Keep" means to keep the control point as the user set it.
  *
- *      start     end of path
- *
- *   1: straight  smooth
- *   2: smooth    smooth
- *   3: smooth    straight
- *   4: keep      smooth
- *   5: keep      keep
- *   6: smooth    keep
- *   7: keep      straight
- *   8: straight  straight  (yields a line)
- *   9: straight  keep
+ * |    | start       |   end of path
+ * | -- | ----------- | ---------------
+ * | 1  | straight    | smooth
+ * | 2  | smooth      | smooth
+ * | 3  | smooth      | straight
+ * | 4  | keep        | smooth
+ * | 5  | keep        | keep
+ * | 6  | smooth      | keep
+ * | 7  | keep        | straight
+ * | 8  | straight    | straight  (yields a line)
+ * | 9  | straight    | keep
  *
  * The equations are (close your eyes):
  *
  * \f{eqnarray}{
- *                2P_{1,i} + P_{1,i+1} &=&  K_i + 2K_{i+1}  \eqno(1) \\
- *    P_{1,i-1} + 4P_{1,i} + P_{1,i+1} &=& 4K_i + 2K_{i+1}  \eqno(2) \\
- *   2P_{1,i-1} + 7P_{1,i}             &=& 8K_i +  K_{i+1}  \eqno(3) \\
- *                 P_{1,i}             &=& C1_i             \eqno(4) \\
- *                 P_{1,i}             &=& C1_i             \eqno(5) \\
- *    P_{1,i-1} + 4P_{1,i}             &=& C2_i + 4K_i      \eqno(6) \\
- *                 P_{1,i}             &=& C1_i             \eqno(7) \\
- *                3P_{1,i}             &=& 2K_i +  K_{i+1}  \eqno(8) \\
- *                2P_{1,i}             &=&  K_i +  C2_i     \eqno(9)
+ *                2P_{1,i} + P_{1,i+1} &=&  K_i + 2K_{i+1}  \label{1} \\
+ *    P_{1,i-1} + 4P_{1,i} + P_{1,i+1} &=& 4K_i + 2K_{i+1}  \label{2} \\
+ *   2P_{1,i-1} + 7P_{1,i}             &=& 8K_i +  K_{i+1}  \label{3} \\
+ *                 P_{1,i}             &=& C1_i             \label{4} \\
+ *                 P_{1,i}             &=& C1_i             \label{5} \\
+ *    P_{1,i-1} + 4P_{1,i}             &=& C2_i + 4K_i      \label{6} \\
+ *                 P_{1,i}             &=& C1_i             \label{7} \\
+ *                3P_{1,i}             &=& 2K_i +  K_{i+1}  \label{8} \\
+ *                2P_{1,i}             &=&  K_i +  C2_i     \label{9}
  * \f}
  *
  * Some of these are the same and differ only in the way we calculate
@@ -3310,17 +3311,17 @@ void gui_init (dt_iop_module_t *module)
 
   gtk_box_pack_start(GTK_BOX(module->widget), hbox, TRUE, TRUE, 0);
 
-  dt_liquify_layers[DT_LIQUIFY_LAYER_PATH].hint           = _("ctrl+click to add node\nright click to remove path");
+  dt_liquify_layers[DT_LIQUIFY_LAYER_PATH].hint           = _("ctrl-click to add node\nright click to remove path");
   dt_liquify_layers[DT_LIQUIFY_LAYER_CENTERPOINT].hint    = _("click and drag to move - click : linear or feathered\n"
-                                                              "ctrl+click : autosmooth, cups, smooth, symmetrical\n"
-                                                              "right-click to remove");
+                                                              "ctrl-click : autosmooth, cusp, smooth, symmetrical\n"
+                                                              "right click to remove");
   dt_liquify_layers[DT_LIQUIFY_LAYER_CTRLPOINT1].hint     = _("drag to change shape of path");
   dt_liquify_layers[DT_LIQUIFY_LAYER_CTRLPOINT2].hint     = _("drag to change shape of path");
   dt_liquify_layers[DT_LIQUIFY_LAYER_RADIUSPOINT].hint    = _("drag to adjust warp radius");
   dt_liquify_layers[DT_LIQUIFY_LAYER_HARDNESSPOINT1].hint = _("drag to adjust hardness (center)");
   dt_liquify_layers[DT_LIQUIFY_LAYER_HARDNESSPOINT2].hint = _("drag to adjust hardness (feather)");
   dt_liquify_layers[DT_LIQUIFY_LAYER_STRENGTHPOINT].hint  = _("drag to adjust warp strength\n"
-                                                              "ctrl+click : linear, grow, and shrink");
+                                                              "ctrl-click : linear, grow, and shrink");
 }
 
 void gui_cleanup (dt_iop_module_t *module)

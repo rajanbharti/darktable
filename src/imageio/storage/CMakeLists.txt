@@ -1,9 +1,6 @@
-cmake_minimum_required(VERSION 2.8.5)
-
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/../../" "${CMAKE_CURRENT_SOURCE_DIR}")
 
-set(CMAKE_C_VISIBILITY_PRESET hidden)
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+include(manage-symbol-visibility)
 
 add_definitions(-include common/module_api.h)
 add_definitions(-include imageio/storage/imageio_storage_api.h)
@@ -24,6 +21,6 @@ foreach(module ${MODULES})
 endforeach(module)
 
 foreach(module ${MODULES})
-	target_link_libraries(${module} ${LIBS})
+	target_link_libraries(${module} lib_darktable)
     install(TARGETS  ${module} DESTINATION ${CMAKE_INSTALL_LIBDIR}/darktable/plugins/imageio/storage)
 endforeach(module)

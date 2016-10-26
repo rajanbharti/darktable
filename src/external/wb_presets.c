@@ -313,6 +313,15 @@ const wb_data wb_preset[] =
   { "Canon", "PowerShot G7 X", Underwater, 8,  { 2.88201603665521, 1, 1.27835051546392, 0 } },
   { "Canon", "PowerShot G7 X", Underwater, 9,  { 3.02536231884058, 1, 1.22584541062802, 0 } },
 
+  { "Canon", "PowerShot G7 X Mark II", Daylight, 0,		{ 2.111328125, 1, 1.7919921875, 0 } },
+  { "Canon", "PowerShot G7 X Mark II", Shade, 0,		{ 2.419921875, 1, 1.4853515625, 0 } },
+  { "Canon", "PowerShot G7 X Mark II", Cloudy, 0,		{ 2.2744140625, 1, 1.6318359375, 0 } },
+  { "Canon", "PowerShot G7 X Mark II", Tungsten, 0,		{ 1.4404296875, 1, 2.7822265625, 0 } },
+  { "Canon", "PowerShot G7 X Mark II", CoolWhiteFluorescent, 0,	{ 2.1494140625, 1, 2.474609375, 0 } },
+  { "Canon", "PowerShot G7 X Mark II", WhiteFluorescent, 0,	{ 2.419921875, 1, 1.4853515625, 0 } },
+  { "Canon", "PowerShot G7 X Mark II", Underwater, 0,		{ 2.3271484375, 1, 1.642578125, 0 } },
+  { "Canon", "PowerShot G7 X Mark II", Flash, 0,		{ 2.576171875, 1, 1.3623046875, 0 } },
+
   { "Canon", "PowerShot G9", Daylight, 0,	{ 2.089552, 1, 1.786452, 0 } },
   { "Canon", "PowerShot G9", Cloudy, 0,		{ 2.208716, 1, 1.660550, 0 } },
   { "Canon", "PowerShot G9", Tungsten, 0,	{ 1.533493, 1, 2.586124, 0 } },
@@ -729,6 +738,13 @@ const wb_data wb_preset[] =
   { "Canon", "EOS 5D Mark III", Flash, 7,	{ 2.479492, 1, 1.321289, 0 } },
   { "Canon", "EOS 5D Mark III", Flash, 8,	{ 2.509766, 1, 1.297852, 0 } },
   { "Canon", "EOS 5D Mark III", Flash, 9,	{ 2.541016, 1, 1.278320, 0 } },
+
+  { "Canon", "EOS 5D Mark IV", Daylight, 0, { 1.9765625, 1, 1.4345703125, 0 } },
+  { "Canon", "EOS 5D Mark IV", Shade, 0, { 2.2607421875, 1, 1.2431640625, 0 } },
+  { "Canon", "EOS 5D Mark IV", Cloudy, 0, { 2.115234375, 1, 1.3330078125, 0 } },
+  { "Canon", "EOS 5D Mark IV", Tungsten, 0, { 1.416015625, 1, 2.01953125, 0 } },
+  { "Canon", "EOS 5D Mark IV", WhiteFluorescent, 0, { 1.6728515625, 1, 1.9462890625, 0 } },
+  { "Canon", "EOS 5D Mark IV", Flash, 0, { 2.1650390625, 1, 1.330078125, 0 } },
 
   { "Canon", "EOS 5DS", Daylight            , 0, { 2.255859, 1, 1.717773, 0 } },
   { "Canon", "EOS 5DS", Shade               , 0, { 2.605469, 1, 1.484375, 0 } },
@@ -5156,6 +5172,16 @@ const wb_data wb_preset[] =
   { "Pentax", "K-50", CoolWhiteFluorescent, 0,        { 2.1600341796875, 1, 2.0692138671875, 0 } },
   { "Pentax", "K-50", Flash, 0,               { 2.544677734375, 1, 1.4359130859375, 0 } },
   { "Pentax", "K-50", WarmWhiteFluorescent, 0,        { 1.8070068359375, 1, 2.58935546875, 0 } },
+
+  /* Pentax K-70 Firmware Version 1.10 */
+  { "Pentax", "K-70", Daylight                     , 0, { 2.14453125, 1, 1.70703125, 0 } },
+  { "Pentax", "K-70", Shade                        , 0, { 2.65625, 1, 1.25, 0 } },
+  { "Pentax", "K-70", Cloudy                       , 0, { 2.37890625, 1, 1.46484375, 0 } },
+  { "Pentax", "K-70", Tungsten                     , 0, { 1.3125, 1, 2.9765625, 0 } },
+  { "Pentax", "K-70", WarmWhiteFluorescent         , 0, { 1.69921875, 1, 2.91015625, 0 } },
+  { "Pentax", "K-70", DayWhiteFluorescent          , 0, { 2.23046875, 1, 1.9140625, 0 } },
+  { "Pentax", "K-70", DaylightFluorescent          , 0, { 2.62890625, 1, 1.671875, 0 } },
+  { "Pentax", "K-70", WhiteFluorescent             , 0, { 2.01953125, 1, 2.3046875, 0 } },
 
     /* Pentax K-500 Firmware Version 1.00 */
   { "Pentax", "K-500", Daylight, 0,           { 2.2076416015625, 1, 1.6060791015625, 0 } },

@@ -1,6 +1,22 @@
-cmake_minimum_required(VERSION 2.8.5)
+cmake_minimum_required(VERSION 3.0)
+
+cmake_policy(SET CMP0011 NEW)
+cmake_policy(SET CMP0025 NEW)
+cmake_policy(SET CMP0048 OLD) # don't touch PROJECT_VERSION/VERSION
+
+#
+# Avoid source tree pollution
+#
+set(CMAKE_DISABLE_SOURCE_CHANGES ON)
+set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
+
+If(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+  message(FATAL_ERROR "In-source builds are not permitted. Make a separate folder for building:\nmkdir build; cd build; cmake ..\nBefore that, remove the files already created:\nrm -rf CMakeCache.txt CMakeFiles")
+endif(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
 
 project(darktable CXX C)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Allow forcing the C/CPP compiler that is actually used during the compilation
 # to something other than what is used by the cmake run. This is useful when
@@ -55,20 +71,16 @@ option(USE_WEBP "Enable WebP export support" ON)
 option(BUILD_CMSTEST "Build a test program to check your system's color management setup" ON)
 option(USE_OPENEXR "Enable OpenEXR support" ON)
 option(BUILD_PRINT "Build the print module" ON)
-option(BUILD_RS_IDENTIFY "Build the darktable-rs-identify debug aid" OFF)
+option(BUILD_RS_IDENTIFY "Build the darktable-rs-identify debug aid" ON)
+option(BUILD_SSE2_CODEPATHS "(EXPERIMENTAL OPTION, DO NOT DISABLE) Building SSE2-optimized codepaths" ON)
+option(VALIDATE_APPDATA_FILE "Use appstream-util (if found) to validate the .appdata file" OFF)
 
-if(NOT SOURCE_PACKAGE)
-  OPTION(BUILD_SSE2_CODEPATHS "(EXPERIMENTAL OPTION, DO NOT DISABLE) Building SSE2-optimized codepaths" ON)
-
-  if(BUILD_SSE2_CODEPATHS)
-    CHECK_C_COMPILER_FLAG("-msse2" _MSSE2)
-    if(NOT _MSSE2)
-      MESSAGE(WARNING "Building of SSE2-optimized codepaths is enabled, but the compiler does not understand -msse2.")
-      set(BUILD_SSE2_CODEPATHS OFF)
-    endif()
+if(BUILD_SSE2_CODEPATHS)
+  CHECK_C_COMPILER_FLAG("-msse2" _MSSE2)
+  if(NOT _MSSE2)
+    MESSAGE(WARNING "Building of SSE2-optimized codepaths is enabled, but the compiler does not understand -msse2.")
+    set(BUILD_SSE2_CODEPATHS OFF)
   endif()
-else()
-  set(BUILD_SSE2_CODEPATHS ON)
 endif()
 
 MESSAGE(STATUS "Building SSE2-optimized codepaths: ${BUILD_SSE2_CODEPATHS}")
@@ -81,6 +93,16 @@ if(${BIGENDIAN})
 else()
 	MESSAGE(STATUS "Found little endian system. Good.")
 endif(${BIGENDIAN})
+
+check_c_source_compiles("
+#include <stdio.h>
+int main() {
+#include \"${CMAKE_SOURCE_DIR}/src/is_supported_platform.h\"
+}" IS_SUPPORTED_PLATFORM)
+if(NOT IS_SUPPORTED_PLATFORM)
+  MESSAGE(FATAL_ERROR "The target platform is not supported!")
+endif(NOT IS_SUPPORTED_PLATFORM)
+MESSAGE(STATUS "Is the target platform supported: ${IS_SUPPORTED_PLATFORM}")
 
 if(APPLE)
 	option(USE_MAC_INTEGRATION "Enable OS X integration" ON)
@@ -142,7 +164,7 @@ file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/") # the src/ subdirectory 
 
 # adds custom command to generate header containing version info.
 # takes 1 optional parameter - version override.
-function(generate_version_gen_h)
+function(generate_version_gen_c)
   if(ARGC EQUAL 2)
     # if a version override was specified, use it
     set(_VERSION "${ARGV0}")
@@ -155,18 +177,18 @@ function(generate_version_gen_h)
 
   add_custom_target(
     create_version_gen ALL
-    COMMAND ${CMAKE_SOURCE_DIR}/tools/create_version_h.sh ${CMAKE_CURRENT_BINARY_DIR}/src/version_gen.h ${_VERSION}
-    DEPENDS ${CMAKE_SOURCE_DIR}/tools/create_version_h.sh
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/create_version_c.sh ${CMAKE_BINARY_DIR}/src/version_gen.c ${_VERSION}
+    DEPENDS ${CMAKE_SOURCE_DIR}/tools/create_version_c.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Updating version string (${_TYPE})"
     VERBATIM # else might break when export-subst was needed but did not happen
   )
-endfunction(generate_version_gen_h)
+endfunction(generate_version_gen_c)
 
 if(DEFINED PROJECT_VERSION)
   #project version is defined by -D on the cmake command line
   # only use that value, do not update it at make time
-  generate_version_gen_h(${PROJECT_VERSION} "version override")
+  generate_version_gen_c(${PROJECT_VERSION} "version override")
 else(DEFINED PROJECT_VERSION)
   if(NOT SOURCE_PACKAGE) # i.e., a git checkout
     # this part is setting the corresponding CMake variable which gets used for example when creating a source package
@@ -175,20 +197,20 @@ else(DEFINED PROJECT_VERSION)
       OUTPUT_VARIABLE PROJECT_VERSION
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     # FIXME: PROJECT_VERSION will not be updated automatically, until you rerun cmake
-    generate_version_gen_h()
+    generate_version_gen_c()
   else(NOT SOURCE_PACKAGE)
-    if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/version_gen.h)
+    if(NOT EXISTS ${CMAKE_SOURCE_DIR}/src/version_gen.c)
       # should be expanded by git archive due to export-subst in .gitattributes
       set(PROJECT_VERSION "archive-$Format:%H$")
       # but was it expanded?
       if(PROJECT_VERSION MATCHES Format)
         set(PROJECT_VERSION "unknown-version")
       endif(PROJECT_VERSION MATCHES Format)
-      generate_version_gen_h(${PROJECT_VERSION} "source package")
-    else(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/version_gen.h)
-      # no need to create version_gen.h if it's already shipped. that is for example the case with our release tarballs
+      generate_version_gen_c(${PROJECT_VERSION} "source package")
+    else(NOT EXISTS ${CMAKE_SOURCE_DIR}/src/version_gen.c)
+      # no need to create version_gen.c if it's already shipped. that is for example the case with our release tarballs
       execute_process(
-        COMMAND ${CMAKE_SOURCE_DIR}/tools/parse_version_h.sh ${CMAKE_CURRENT_SOURCE_DIR}/src/version_gen.h OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND ${CMAKE_SOURCE_DIR}/tools/parse_version_h.sh ${CMAKE_SOURCE_DIR}/src/version_gen.c OUTPUT_STRIP_TRAILING_WHITESPACE
         OUTPUT_VARIABLE PROJECT_VERSION
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       )
@@ -196,43 +218,32 @@ else(DEFINED PROJECT_VERSION)
       # but generate_version target expects it to be in build dir, so we need to copy it
       add_custom_target(
         create_version_gen ALL
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src/version_gen.h ${CMAKE_CURRENT_BINARY_DIR}/src/version_gen.h
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/version_gen.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/src/version_gen.c ${CMAKE_BINARY_DIR}/src/version_gen.c
+        DEPENDS ${CMAKE_SOURCE_DIR}/src/version_gen.c
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Updating version string (source package) - ${PROJECT_VERSION}"
       )
-    endif(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/version_gen.h)
+    endif(NOT EXISTS ${CMAKE_SOURCE_DIR}/src/version_gen.c)
   endif(NOT SOURCE_PACKAGE)
 endif(DEFINED PROJECT_VERSION)
 
 # needed to make sure that version string is actually updated.
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/version_gen.h
+  OUTPUT ${CMAKE_BINARY_DIR}/src/version_gen.c
   COMMAND ${CMAKE_COMMAND} -E echo
   DEPENDS create_version_gen
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
-# WARNING: no target should reference version_gen.h directly. instead, they should add_dependencies(yourtarget generate_version)
+# WARNING: no target should reference version_gen.c directly. instead, they should add_dependencies(yourtarget generate_version)
 add_custom_target(
   generate_version ALL
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/version_gen.h
+  DEPENDS ${CMAKE_BINARY_DIR}/src/version_gen.c
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
-#
-# Initial cmake/debian/postinst and prerm script for debian package
-#
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/packaging/debian)
-
-
-#
-# Avoid source tree pollution
-#
-If(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
-	message(FATAL_ERROR "In-source builds are not permitted. Make a separate folder for building:\nmkdir build; cd build; cmake ..\nBefore that, remove the files already created:\nrm -rf CMakeCache.txt CMakeFiles")
-endif(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 # Add a sensible build type default and warning because empty means no optimization and no debug info.
 if(NOT CMAKE_BUILD_TYPE)
@@ -244,6 +255,8 @@ if(CMAKE_BUILD_TYPE MATCHES "^[Dd][Ee][Bb][Uu][Gg]$" AND SOURCE_PACKAGE)
   message(FATAL_ERROR "ERROR: Debug build type most likely isn't what you want, use RelWithDebInfo instead. If you're absolutely sure that this is what you want then just comment out this line.")
 endif()
 
+include(compiler-warnings)
+
 # Setting the runtime path works differently on OSX than on Linux or BSD.
 # Hence use a variable that maps those in the correct way for each OS.
 if(APPLE)
@@ -254,6 +267,13 @@ else(APPLE)
     # The string "$ORIGIN" should end up in the executable as-is.
     set(RPATH_DT "$ORIGIN")
 endif(APPLE)
+
+if(NOT WIN32)
+  # Windows doesn't know the concept of RPATHs :(
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+  set(CMAKE_INSTALL_RPATH ${RPATH_DT}/../${CMAKE_INSTALL_LIBDIR}/darktable)
+endif(NOT WIN32)
 
 # we need some external programs for building darktable
 message(STATUS "Looking for external programs")
@@ -286,6 +306,27 @@ else(${desktop_file_validate_BIN} STREQUAL "desktop_file_validate_BIN-NOTFOUND")
   message(STATUS "Found desktop-file-validate")
   set(VALIDATE_DESKTOP_FILE 1)
 endif(${desktop_file_validate_BIN} STREQUAL "desktop_file_validate_BIN-NOTFOUND")
+
+# we need appstream-util to check darktable.appdata.xml
+if(VALIDATE_APPDATA_FILE)
+  find_program(appstream_util_BIN appstream-util)
+  if(${appstream_util_BIN} STREQUAL "appstream_util_BIN-NOTFOUND")
+    message(STATUS "Missing appstream-util, problems in darktable.appdata.xml might go unnoticed")
+    set(VALIDATE_APPDATA_FILE OFF)
+  else(${appstream_util_BIN} STREQUAL "appstream_util_BIN-NOTFOUND")
+    message(STATUS "Found appstream-util")
+  endif(${appstream_util_BIN} STREQUAL "appstream_util_BIN-NOTFOUND")
+endif(VALIDATE_APPDATA_FILE)
+
+# we need jsonschema to check noiseprofiles.json
+find_program(jsonschema_BIN jsonschema)
+if(${jsonschema_BIN} STREQUAL "jsonschema_BIN-NOTFOUND")
+  message(STATUS "Missing jsonschema, problems in noiseprofiles.json might go unnoticed")
+  set(VALIDATE_JSON 0)
+else(${jsonschema_BIN} STREQUAL "jsonschema_BIN-NOTFOUND")
+  message(STATUS "Found jsonschema")
+  set(VALIDATE_JSON 1)
+endif(${jsonschema_BIN} STREQUAL "jsonschema_BIN-NOTFOUND")
 
 # we need an xslt interpreter to generate preferences_gen.h and darktablerc
 find_program(Xsltproc_BIN xsltproc)
@@ -324,15 +365,12 @@ endif(NOT EXTERNAL_PROGRAMS_FOUND)
 # The path can be modified by setting CMAKE_INSTALL_LOCALEDIR
 if(USE_NLS)
     find_package(Gettext)
-    if(Gettext_FOUND)
-        find_package(Msgfmt)
-        if(Msgfmt_FOUND)
-            message(STATUS "Found msgfmt to convert language file. Translation enabled")
-            add_subdirectory(po)
-        else()
-            message(STATUS "Cannot find msgfmt to convert language file. Translation won't be enabled")
-        endif()
-    endif(Gettext_FOUND)
+    if(GETTEXT_MSGFMT_EXECUTABLE)
+        message(STATUS "Found msgfmt to convert .po file. Translation enabled")
+        add_subdirectory(po)
+    else()
+        message(STATUS "Cannot find msgfmt to convert .po file. Translation won't be enabled")
+    endif()
 endif(USE_NLS)
 
 #find a temporary directory
@@ -351,6 +389,45 @@ if(USE_OPENCL)
 else()
 	SET(HAVE_OPENCL 0)
 endif(USE_OPENCL)
+
+if(NOT SOURCE_PACKAGE AND NOT (CMAKE_VERSION VERSION_LESS 3.3) AND DEFINED ENV{_DO_IWYU})
+  find_program(iwyu_path NAMES include-what-you-use iwyu)
+
+  if(iwyu_path)
+    set(DT_CMAKE_INCLUDE_WHAT_YOU_USE ${iwyu_path} -Xiwyu --mapping_file=${CMAKE_SOURCE_DIR}/iwyu.imp -Xiwyu --prefix_header_includes=add)
+  endif()
+
+  find_program(iwyu_tool_path NAMES iwyu_tool.py)
+  if (iwyu_tool_path)
+    add_custom_command(
+      OUTPUT "${CMAKE_BINARY_DIR}/iwyu.log"
+      COMMAND "${iwyu_tool_path}" -v -p "${CMAKE_BINARY_DIR}"
+              -- --mapping_file=${CMAKE_SOURCE_DIR}/iwyu.imp
+              --prefix_header_includes=add 2>
+              "${CMAKE_BINARY_DIR}/iwyu.log"
+      WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+      COMMENT "Running include-what-you-use tool"
+      VERBATIM
+    )
+    add_custom_target(iwyu
+      DEPENDS "${CMAKE_BINARY_DIR}/iwyu.log"
+      VERBATIM
+    )
+  endif()
+
+  find_program(fix_includes_path NAMES fix_includes.py)
+  if (fix_includes_path)
+    add_custom_target(iwyu_fix
+      COMMAND "${fix_includes_path}" --noblank_lines --comments
+              --nosafe_headers < "${CMAKE_BINARY_DIR}/iwyu.log" || true
+      COMMAND ${CMAKE_COMMAND} -E remove "${CMAKE_BINARY_DIR}/iwyu.log"
+      DEPENDS "${CMAKE_BINARY_DIR}/iwyu.log"
+      WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+      COMMENT "Running include-what-you-use fix_includes tool"
+      VERBATIM
+    )
+  endif()
+endif()
 
 #
 # Test SSE level

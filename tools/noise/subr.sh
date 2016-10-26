@@ -282,6 +282,9 @@ get_image_iso() {
 	if [ -z "$iso" -o "$iso" = "65535" ]; then
 		iso=$(get_exif_key "$file" Exif.Photo.RecommendedExposureIndex)
 	fi
+	if [ -z "$iso" -o "$iso" = "65535" ]; then
+		iso=$(get_exif_key "$file" Exif.Photo.StandardOutputSensitivity)
+	fi
 
 	# Then try some brand specific values if still not found.
 
@@ -458,7 +461,7 @@ export_thumbnail() {
 	convert "$input" -resize 1024x1024 "$output"
 }
 
-check_exposition() {
+check_exposure() {
 	local orig input over under ret convert_flags
 	orig=$1
 	input=$2

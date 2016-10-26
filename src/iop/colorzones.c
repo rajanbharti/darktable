@@ -274,9 +274,9 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   return TRUE;
 
 error:
-  if(dev_L != NULL) dt_opencl_release_mem_object(dev_L);
-  if(dev_a != NULL) dt_opencl_release_mem_object(dev_a);
-  if(dev_b != NULL) dt_opencl_release_mem_object(dev_b);
+  dt_opencl_release_mem_object(dev_L);
+  dt_opencl_release_mem_object(dev_a);
+  dt_opencl_release_mem_object(dev_b);
   dt_print(DT_DEBUG_OPENCL, "[opencl_colorzones] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -408,7 +408,7 @@ void init_presets(dt_iop_module_so_t *self)
 
   p.strength = 0.0;
 
-  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "begin", NULL, NULL, NULL);
+  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "BEGIN", NULL, NULL, NULL);
 
   // red black white
 
@@ -523,7 +523,7 @@ void init_presets(dt_iop_module_so_t *self)
   p.equalizer_y[DT_IOP_COLORZONES_L][7] = 0.613040;
   dt_gui_presets_add_generic(_("black & white film"), self->op, 3, &p, sizeof(p), 1);
 
-  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "commit", NULL, NULL, NULL);
+  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "COMMIT", NULL, NULL, NULL);
 }
 
 // fills in new parameters based on mouse position (in 0,1)

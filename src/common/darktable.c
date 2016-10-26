@@ -21,8 +21,6 @@
 #include "config.h"
 #endif
 
-#include "version.h"
-
 #if !defined(__APPLE__) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
 #include <malloc.h>
 #endif
@@ -51,6 +49,7 @@
 #include "common/noiseprofiles.h"
 #include "common/opencl.h"
 #include "common/points.h"
+#include "common/resource_limits.h"
 #include "control/conf.h"
 #include "control/control.h"
 #include "control/crawler.h"
@@ -65,11 +64,12 @@
 #include "lua/init.h"
 #include "views/undo.h"
 #include "views/view.h"
+#include <errno.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <string.h>
 #include <sys/param.h>
 #include <sys/types.h>
@@ -173,7 +173,7 @@ static void _dt_sigsegv_handler(int param)
   if((fout = g_file_open_tmp("darktable_bt_XXXXXX.txt", &name_used, NULL)) == -1)
     fout = STDOUT_FILENO; // just print everything to stdout
 
-  dprintf(fout, "this is %s reporting a segfault:\n\n", PACKAGE_STRING);
+  dprintf(fout, "this is %s reporting a segfault:\n\n", darktable_package_string);
 
   if(fout != STDOUT_FILENO) close(fout);
 
@@ -449,46 +449,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
   _dt_sigsegv_old_handler = signal(SIGSEGV, &_dt_sigsegv_handler);
 #endif
 
-#if !defined(__BYTE_ORDER__) || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
-#error "Unfortunately we only work on litte-endian systems."
-#endif
-
-#if(defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(__i386__)  \
-    || defined(__i386))
-#define DT_SUPPORTED_X86 1
-#else
-#define DT_SUPPORTED_X86 0
-#endif
-
-#if defined(__aarch64__) && defined(__ARM_64BIT_STATE) && defined(__ARM_ARCH) && defined(__ARM_ARCH_8A)
-#define DT_SUPPORTED_ARMv8A 1
-#else
-#define DT_SUPPORTED_ARMv8A 0
-#endif
-
-#if !DT_SUPPORTED_X86 && !DT_SUPPORTED_ARMv8A
-#error "Unfortunately we only work on amd64/x86 (64-bit and maybe 32-bit) and ARMv8-A (64-bit only)."
-#endif
-
-#if !DT_SUPPORTED_X86
-#if !defined(__SIZEOF_POINTER__) || __SIZEOF_POINTER__ < 8
-#error "On non-x86, we only support 64-bit."
-#else
-  if(sizeof(void *) < 8)
-  {
-    fprintf(stderr, "[dt_init] On non-x86, we only support 64-bit.\n");
-    return 1;
-  }
-#endif
-#endif
-
-#undef DT_SUPPORTED_ARMv8A
-#undef DT_SUPPORTED_X86
-
-#if !defined(__SSE2__) || !defined(__SSE__)
-#pragma message "Building without SSE2 is highly experimental."
-#pragma message "Expect a LOT of functionality to be broken. You have been warned."
-#endif
+#include "is_supported_platform.h"
 
   int sse2_supported = 0;
 
@@ -508,6 +469,9 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
 #ifdef M_MMAP_THRESHOLD
   mallopt(M_MMAP_THRESHOLD, 128 * 1024); /* use mmap() for large allocations */
 #endif
+
+  // make sure that stack/frame limits are good (musl)
+  dt_set_rlimits();
 
   // we have to have our share dir in XDG_DATA_DIRS,
   // otherwise GTK+ won't find our logo for the about screen (and maybe other things)
@@ -608,8 +572,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
                                       STR(LUA_API_VERSION_MINOR) "."
                                       STR(LUA_API_VERSION_PATCH);
 #endif
-        printf("this is " PACKAGE_STRING "\ncopyright (c) 2009-2016 johannes hanika\n" PACKAGE_BUGREPORT
-               "\n\ncompile options:\n"
+        printf("this is %s\ncopyright (c) 2009-2016 johannes hanika\n" PACKAGE_BUGREPORT "\n\ncompile options:\n"
                "  bit depth is %s\n"
 #ifdef _DEBUG
                "  debug build\n"
@@ -651,11 +614,20 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
 #else
                "  GraphicsMagick support disabled\n"
 #endif
-               , (sizeof(void *) == 8 ? "64 bit" : sizeof(void *) == 4 ? "32 bit" : "unknown")
-#if USE_LUA
-               , lua_api_version
+
+#ifdef HAVE_OPENEXR
+               "  OpenEXR support enabled\n"
+#else
+               "  OpenEXR support disabled\n"
 #endif
-        );
+               ,
+               darktable_package_string,
+               (sizeof(void *) == 8 ? "64 bit" : sizeof(void *) == 4 ? "32 bit" : "unknown")
+#if USE_LUA
+                   ,
+               lua_api_version
+#endif
+               );
         return 1;
       }
       else if(!strcmp(argv[k], "--library") && argc > k + 1)
@@ -828,6 +800,10 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
     dt_print_mem_usage();
   }
 
+  // we need this REALLY early so that error messages can be shown
+  if(init_gui)
+    gtk_init(&argc, &argv);
+
 #ifdef _OPENMP
   omp_set_num_threads(darktable.num_openmp_threads);
 #endif
@@ -987,7 +963,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
   if(init_gui)
   {
     darktable.gui = (dt_gui_gtk_t *)calloc(1, sizeof(dt_gui_gtk_t));
-    if(dt_gui_gtk_init(darktable.gui, argc, argv)) return 1;
+    if(dt_gui_gtk_init(darktable.gui)) return 1;
     dt_bauhaus_init();
   }
   else
@@ -1005,14 +981,14 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
   // load the darkroom mode plugins once:
   dt_iop_load_modules_so();
 
-#ifdef HAVE_GPHOTO2
-  // Initialize the camera control.
-  // this is done late so that the gui can react to the signal sent but before switching to lighttable!
-  darktable.camctl = dt_camctl_new();
-#endif
-
   if(init_gui)
   {
+#ifdef HAVE_GPHOTO2
+    // Initialize the camera control.
+    // this is done late so that the gui can react to the signal sent but before switching to lighttable!
+    darktable.camctl = dt_camctl_new();
+#endif
+
     darktable.lib = (dt_lib_t *)calloc(1, sizeof(dt_lib_t));
     dt_lib_init(darktable.lib);
 

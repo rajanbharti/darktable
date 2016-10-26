@@ -16,16 +16,20 @@
     You should have received a copy of the GNU General Public License
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #ifdef _OPENMP
 #include <omp.h>
 #endif
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
-#include "rawspeed/RawSpeed/RawSpeed-API.h"
+#include <cstddef>    // for size_t
+#include <cstdio>     // for fprintf, stdout, stderr
+#include <exception>  // for exception
+#include <memory>     // for unique_ptr, allocator
+#include <string>     // for string, operator+
+#include <sys/stat.h> // for stat
+#include <vector>     // for vector
+
+#include "rawspeed/RawSpeed/RawSpeed-API.h" // IWYU pragma: keep
 
 // define this function, it is only declared in rawspeed:
 int rawspeed_get_number_of_processor_cores()
@@ -39,12 +43,12 @@ int rawspeed_get_number_of_processor_cores()
 
 using namespace RawSpeed;
 
-char *find_cameras_xml(const char *argv0)
+std::string find_cameras_xml(const char *argv0)
 {
   struct stat statbuf;
 
 #ifdef RS_CAMERAS_XML_PATH
-  static char set_camfile[] = RS_CAMERAS_XML_PATH;
+  static const char set_camfile[] = RS_CAMERAS_XML_PATH;
   if (stat(set_camfile, &statbuf))
   {
     fprintf(stderr, "WARNING: Couldn't find cameras.xml in '%s'\n", set_camfile);
@@ -55,34 +59,20 @@ char *find_cameras_xml(const char *argv0)
   }
 #endif
 
+  std::string self(argv0);
+
   // If we haven't been provided with a valid cameras.xml path on compile try relative to argv[0]
-  size_t len = strlen(argv0);
-  char *bindir = (char *) calloc(len+1, sizeof(char));
-  int found_slash = FALSE;
-  for (int i = len-1; i >= 0; i--)
+  std::size_t lastslash = self.find_last_of("/\\");
+  std::string bindir(self.substr(0, lastslash));
+
+  std::string found_camfile(bindir + "/../share/darktable/rawspeed/cameras.xml");
+
+  if (stat(found_camfile.c_str(), &statbuf))
   {
-    if (found_slash)
-    {
-      bindir[i] = argv0[i];
-    }
-    else
-    {
-      bindir[i] = '\0';
-      if (argv0[i] == '/')
-        found_slash = TRUE;
-    }
-  }
-  char *found_camfile = NULL;
-  if (asprintf(&found_camfile, "%s/../share/darktable/rawspeed/cameras.xml", bindir) == -1)
-  {
-    fprintf(stderr, "ERROR: Something is seriously broken here, bailing out");
+    fprintf(stderr, "ERROR: Couldn't find cameras.xml in '%s'\n", found_camfile.c_str());
     return NULL;
   }
-  if (stat(found_camfile, &statbuf))
-  {
-    fprintf(stderr, "ERROR: Couldn't find cameras.xml in '%s'\n", found_camfile);
-    return NULL;
-  }
+
   return found_camfile;
 }
 
@@ -95,8 +85,8 @@ int main(int argc, const char* argv[])
     return 2;
   }
 
-  char *camfile = find_cameras_xml(argv[0]);
-  if (!camfile)
+  const std::string camfile = find_cameras_xml(argv[0]);
+  if (camfile.empty())
   {
     //fprintf(stderr, "ERROR: Couldn't find cameras.xml\n");
     return 2;
@@ -105,17 +95,27 @@ int main(int argc, const char* argv[])
 
   try
   {
-    CameraMetaData *meta = new CameraMetaData(camfile);
+    std::unique_ptr<CameraMetaData> meta(new CameraMetaData(camfile.c_str()));
+
+    if(!meta.get())
+    {
+      fprintf(stderr, "ERROR: Couldn't get a CameraMetaData instance\n");
+      return 2;
+    }
 
 #ifdef __AFL_HAVE_MANUAL_CONTROL
     __AFL_INIT();
 #endif
 
     FileReader f((char *) argv[1]);
-    RawParser t(f.readFile());
-    RawDecoder *d = t.getDecoder(meta);
 
-    if(!d)
+    std::unique_ptr<FileMap> m(f.readFile());
+
+    RawParser t(m.get());
+
+    std::unique_ptr<RawDecoder> d(t.getDecoder(meta.get()));
+
+    if(!d.get())
     {
       fprintf(stderr, "ERROR: Couldn't get a RawDecoder instance\n");
       return 2;
@@ -125,7 +125,7 @@ int main(int argc, const char* argv[])
     d->failOnUnknown = true;
     RawImage r = d->mRaw;
 
-    d->decodeMetaData(meta);
+    d->decodeMetaData(meta.get());
 
     fprintf(stdout, "make: %s\n", r->metadata.make.c_str());
     fprintf(stdout, "model: %s\n", r->metadata.model.c_str());
@@ -134,9 +134,9 @@ int main(int argc, const char* argv[])
     fprintf(stdout, "canonical_model: %s\n", r->metadata.canonical_model.c_str());
     fprintf(stdout, "canonical_alias: %s\n", r->metadata.canonical_alias.c_str());
 
-    d->checkSupport(meta);
+    d->checkSupport(meta.get());
     d->decodeRaw();
-    d->decodeMetaData(meta);
+    d->decodeMetaData(meta.get());
     r = d->mRaw;
     for (uint32 i=0; i<r->errors.size(); i++)
       fprintf(stderr, "WARNING: [rawspeed] %s\n", r->errors[i]);
@@ -144,11 +144,11 @@ int main(int argc, const char* argv[])
     fprintf(stdout, "blackLevel: %d\n", r->blackLevel);
     fprintf(stdout, "whitePoint: %d\n", r->whitePoint);
 
-    fprintf(stdout, "blackLevelSeparate: %d %d %d %d\n", 
+    fprintf(stdout, "blackLevelSeparate: %d %d %d %d\n",
                     r->blackLevelSeparate[0], r->blackLevelSeparate[1],
                     r->blackLevelSeparate[2], r->blackLevelSeparate[3]);
 
-    fprintf(stdout, "wbCoeffs: %f %f %f %f\n", 
+    fprintf(stdout, "wbCoeffs: %f %f %f %f\n",
                     r->metadata.wbCoeffs[0], r->metadata.wbCoeffs[1],
                     r->metadata.wbCoeffs[2], r->metadata.wbCoeffs[3]);
 
@@ -177,14 +177,38 @@ int main(int argc, const char* argv[])
     fprintf(stdout, "pixel_aspect_ratio: %f\n", r->metadata.pixelAspectRatio);
 
     double sum = 0.0f;
-    for(uint32 row = 0; row < ((uint32) dimUncropped.y); row++)
     {
-      uchar8 *data = r->getDataUncropped(0, row);
-      for(uint32 byte = 0; byte < ((uint32) dimUncropped.x*bpp) ; byte++)
-        sum += (double) data[byte];
+      uchar8 *data = r->getDataUncropped(0, 0);
+      for(uint32 k = 0; k < ((size_t) dimUncropped.y*dimUncropped.x*bpp*cpp); k++)
+      {
+        sum += (double) data[k];
+      }
     }
     fprintf(stdout, "Image byte sum: %lf\n", sum);
-    fprintf(stdout, "Image byte avg: %lf\n", sum/(dimUncropped.y*dimUncropped.x*bpp));
+    fprintf(stdout, "Image byte avg: %lf\n", sum/(double)(dimUncropped.y*dimUncropped.x*bpp*cpp));
+
+    if(r->getDataType() == TYPE_FLOAT32)
+    {
+      sum = 0.0f;
+      float *data = (float *)r->getDataUncropped(0, 0);
+      for(uint32 k = 0; k < ((size_t) dimUncropped.y*dimUncropped.x*cpp); k++)
+      {
+        sum += (double) data[k];
+      }
+      fprintf(stdout, "Image float sum: %lf\n", sum);
+      fprintf(stdout, "Image float avg: %lf\n", sum/(double)(dimUncropped.y*dimUncropped.x*cpp));
+    }
+    else if(r->getDataType() == TYPE_USHORT16)
+    {
+      sum = 0.0f;
+      uint16_t *data = (uint16_t *)r->getDataUncropped(0, 0);
+      for(uint32 k = 0; k < ((size_t) dimUncropped.y*dimUncropped.x*cpp); k++)
+      {
+        sum += (double) data[k];
+      }
+      fprintf(stdout, "Image uint16_t sum: %lf\n", sum);
+      fprintf(stdout, "Image uint16_t avg: %lf\n", sum/(double)(dimUncropped.y*dimUncropped.x*cpp));
+    }
   }
   catch(const std::exception &exc)
   {

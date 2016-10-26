@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 2.8.5)
-
 add_subdirectory(pixmaps)
 
 if(USE_OPENCL)
@@ -10,6 +8,14 @@ endif(USE_OPENCL)
 # Generate and instal darktable.css
 #
 if ("${GTK3_VERSION}" VERSION_GREATER "3.19.0")
+  if ("${GTK3_VERSION}" VERSION_GREATER "3.21.0")
+    set(GTK_CSS_FONT "8pt Sans") # FIXME: does it really equal the old value?
+    set(GTK_CSS_FONT2_SIZE "15pt") # why is it different all of the sudden?
+  else ()
+    set(GTK_CSS_FONT "Sans 8")
+    set(GTK_CSS_FONT2_SIZE "10pt")
+  endif ()
+
   configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/darktable.css.in ${CMAKE_CURRENT_BINARY_DIR}/darktable.css )
 else ()
   configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/darktable-3.18.css.in ${CMAKE_CURRENT_BINARY_DIR}/darktable.css )
@@ -22,8 +28,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/darktable.css DESTINATION ${CMAKE_INST
 FILE(GLOB WEB_FILES "style/*")
 install(FILES ${WEB_FILES} DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/darktable/style)
 
-FILE(GLOB WEB_FILES "js/*")
-install(FILES ${WEB_FILES} DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/darktable/js)
+install(DIRECTORY "pswp" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/darktable)
 
 #
 # latex book template support files:
@@ -63,14 +68,27 @@ if(${VALIDATE_DESKTOP_FILE})
 endif()
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/darktable.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
 
-add_custom_command(
-		OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml
-		SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in
-		COMMAND ${intltool_merge_BIN} --xml-style ${CMAKE_CURRENT_SOURCE_DIR}/../po ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml
-		MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in
-		DEPENDS ${PO_FILES}
-)
+if(${VALIDATE_APPDATA_FILE})
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml
+    SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in
+    COMMAND ${intltool_merge_BIN} --xml-style ${CMAKE_CURRENT_SOURCE_DIR}/../po ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml
+    COMMAND ${appstream_util_BIN} validate --nonet ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in
+    DEPENDS ${PO_FILES}
+  )
+else()
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml
+    SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in
+    COMMAND ${intltool_merge_BIN} --xml-style ${CMAKE_CURRENT_SOURCE_DIR}/../po ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/darktable.appdata.xml.in
+    DEPENDS ${PO_FILES}
+  )
+endif()
+
 add_custom_target(darktable.appdata_file ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml)
+
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/darktable.appdata.xml DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/appdata)
 
 #
@@ -87,6 +105,15 @@ install(FILES gdb_commands DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/darktable)
 #
 # Install noiseprofiles
 #
+if(${VALIDATE_JSON})
+  add_custom_target(
+    validate_noiseprofiles_json ALL
+    COMMAND ${jsonschema_BIN} -i ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.json ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.schema
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.json ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.schema
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
+    COMMENT "Checking validity of noiseprofiles.json"
+  )
+endif()
 install(FILES noiseprofiles.json DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/darktable)
 
 #

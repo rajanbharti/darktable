@@ -83,7 +83,6 @@ void dt_lua_init_early(lua_State *L)
   darktable.lua_state.loop = NULL;;
   darktable.lua_state.context = NULL;;
   darktable.lua_state.stacked_job_queue = NULL;;
-  darktable.lua_state.pending_threads = 0;
   dt_lua_init_lock(); // lock is initialized in the locked state
   luaL_openlibs(darktable.lua_state.state);
   luaA_open(L);
@@ -203,7 +202,7 @@ static int load_from_lua(lua_State *L)
   int argc = lua_gettop(L);
 
   char **argv = calloc(argc + 1, sizeof(char *));
-  char *argv_copy[argc + 1];
+  char **argv_copy = malloc((argc + 1) * sizeof(char *));
   argv[0] = strdup("lua");
   argv_copy[0] = argv[0];
   for(int i = 1; i < argc; i++)
@@ -222,6 +221,7 @@ static int load_from_lua(lua_State *L)
   {
     free(argv_copy[i]);
   }
+  free(argv_copy);
   free(argv);
   dt_lua_push_darktable_lib(L);
   return 1;
@@ -242,15 +242,7 @@ void dt_lua_finalize_early()
   dt_lua_lock();
   dt_lua_event_trigger(darktable.lua_state.state,"exit",0);
   dt_lua_unlock();
-  int i = 10;
   g_main_context_wakeup(darktable.lua_state.context);
-  while(i && darktable.lua_state.pending_threads){
-    dt_print(DT_DEBUG_LUA, "LUA : waiting for %d threads to finish...\n", darktable.lua_state.pending_threads);
-    sleep(1);// give them a little time to finish
-    i--;
-  }
-  if(darktable.lua_state.pending_threads)
-    dt_print(DT_DEBUG_LUA, "LUA : all threads did not finish properly.\n");
 }
 
 void dt_lua_finalize()

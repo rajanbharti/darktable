@@ -252,11 +252,11 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_monochrome, sizes);
   if(err != CL_SUCCESS) goto error;
 
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_tmp);
   return TRUE;
 
 error:
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_tmp);
   dt_bilateral_free_cl(b);
   dt_print(DT_DEBUG_OPENCL, "[opencl_monochrome] couldn't enqueue kernel! %d\n", err);
   return FALSE;
@@ -494,7 +494,7 @@ static gboolean dt_iop_monochrome_button_press(GtkWidget *widget, GdkEventButton
       p->a = PANEL_WIDTH * (mouse_x - width * 0.5f) / (float)width;
       p->b = PANEL_WIDTH * (mouse_y - height * 0.5f) / (float)height;
       g->dragging = 1;
-      g_object_set(G_OBJECT(widget), "has-tooltip", FALSE, (char *)NULL);
+      g_object_set(G_OBJECT(widget), "has-tooltip", FALSE, (gchar *)0);
     }
     gtk_widget_queue_draw(self->widget);
     return TRUE;
@@ -510,7 +510,7 @@ static gboolean dt_iop_monochrome_button_release(GtkWidget *widget, GdkEventButt
     dt_iop_monochrome_gui_data_t *g = (dt_iop_monochrome_gui_data_t *)self->gui_data;
     self->request_color_pick = DT_REQUEST_COLORPICK_OFF;
     g->dragging = 0;
-    g_object_set(G_OBJECT(widget), "has-tooltip", TRUE, (char *)NULL);
+    g_object_set(G_OBJECT(widget), "has-tooltip", TRUE, (gchar *)0);
     return TRUE;
   }
   return FALSE;

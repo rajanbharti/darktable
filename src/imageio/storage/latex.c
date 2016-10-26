@@ -32,7 +32,6 @@
 #include "gui/gtk.h"
 #include "gui/gtkentry.h"
 #include "imageio/storage/imageio_storage_api.h"
-#include "version.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -171,7 +170,7 @@ void gui_init(dt_imageio_module_storage_t *self)
 
   widget = gtk_label_new(_("title"));
   gtk_widget_set_halign(widget, GTK_ALIGN_START);
-  g_object_set(G_OBJECT(widget), "xalign", 0.0, NULL);
+  g_object_set(G_OBJECT(widget), "xalign", 0.0, (gchar *)0);
   gtk_box_pack_start(GTK_BOX(hbox), widget, FALSE, FALSE, 0);
 
   d->title_entry = GTK_ENTRY(gtk_entry_new());
@@ -417,7 +416,8 @@ void finalize_store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t 
   }
 
   fprintf(f, "\\end{document}"
-             "%% created with darktable " PACKAGE_VERSION "\n");
+             "%% created with %s\n",
+          darktable_package_string);
   fclose(f);
 }
 

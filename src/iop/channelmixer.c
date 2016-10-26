@@ -281,9 +281,9 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   return TRUE;
 
 error:
-  if(dev_red != NULL) dt_opencl_release_mem_object(dev_red);
-  if(dev_green != NULL) dt_opencl_release_mem_object(dev_green);
-  if(dev_blue != NULL) dt_opencl_release_mem_object(dev_blue);
+  dt_opencl_release_mem_object(dev_red);
+  dt_opencl_release_mem_object(dev_green);
+  dt_opencl_release_mem_object(dev_blue);
   dt_print(DT_DEBUG_OPENCL, "[opencl_channelmixer] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -481,7 +481,7 @@ void gui_init(struct dt_iop_module_t *self)
 
 void init_presets(dt_iop_module_so_t *self)
 {
-  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "begin", NULL, NULL, NULL);
+  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "BEGIN", NULL, NULL, NULL);
 
   dt_gui_presets_add_generic(_("swap R and B"), self->op, self->version(),
                              &(dt_iop_channelmixer_params_t){ { 0, 0, 0, 0, 0, 1, 0 },
@@ -528,7 +528,8 @@ void init_presets(dt_iop_module_so_t *self)
                                                               { 0, 0, 0, 0, 0, 0, 0.750 },
                                                               { 0, 0, 0, 0, 0, 0, -0.15 } },
                              sizeof(dt_iop_channelmixer_params_t), 1);
-  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "commit", NULL, NULL, NULL);
+
+  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "COMMIT", NULL, NULL, NULL);
 }
 
 void gui_cleanup(struct dt_iop_module_t *self)

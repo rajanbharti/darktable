@@ -157,8 +157,13 @@ typedef struct dt_iop_module_so_t
   int (*operation_tags)();
   int (*operation_tags_filter)();
 
-  int (*output_bpp)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_t *pipe,
-                    struct dt_dev_pixelpipe_iop_t *piece);
+  /** what do the iop want as an input? */
+  void (*input_format)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_t *pipe,
+                       struct dt_dev_pixelpipe_iop_t *piece, struct dt_iop_buffer_dsc_t *dsc);
+  /** what will it output? */
+  void (*output_format)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_t *pipe,
+                        struct dt_dev_pixelpipe_iop_t *piece, struct dt_iop_buffer_dsc_t *dsc);
+
   void (*tiling_callback)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece,
                           const struct dt_iop_roi_t *roi_in, const struct dt_iop_roi_t *roi_out,
                           struct dt_develop_tiling_t *tiling);
@@ -262,9 +267,9 @@ typedef struct dt_iop_module_t
   /** single point to pick if in point mode */
   float color_picker_point[2];
   /** place to store the picked color of module input. */
-  float picked_color[3], picked_color_min[3], picked_color_max[3];
+  float picked_color[4], picked_color_min[4], picked_color_max[4];
   /** place to store the picked color of module output (before blending). */
-  float picked_output_color[3], picked_output_color_min[3], picked_output_color_max[3];
+  float picked_output_color[4], picked_output_color_min[4], picked_output_color_max[4];
   /** pointer to pre-module histogram data; if available: histogram_bins_count bins with 4 channels each */
   uint32_t *histogram;
   /** stats of captured histogram */
@@ -336,9 +341,11 @@ typedef struct dt_iop_module_t
   int (*operation_tags)();
 
   int (*operation_tags_filter)();
-  /** how many bytes per pixel in the output. */
-  int (*output_bpp)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_t *pipe,
-                    struct dt_dev_pixelpipe_iop_t *piece);
+  void (*input_format)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_t *pipe,
+                       struct dt_dev_pixelpipe_iop_t *piece, struct dt_iop_buffer_dsc_t *dsc);
+  /** what will it output? */
+  void (*output_format)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_t *pipe,
+                        struct dt_dev_pixelpipe_iop_t *piece, struct dt_iop_buffer_dsc_t *dsc);
   /** report back info for tiling: memory usage and overlap. Memory usage: factor * input_size + overhead */
   void (*tiling_callback)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece,
                           const struct dt_iop_roi_t *roi_in, const struct dt_iop_roi_t *roi_out,

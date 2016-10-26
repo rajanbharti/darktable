@@ -108,17 +108,18 @@ RawImage NefDecoder::decodeRawInternal() {
   }
 
   try {
-    NikonDecompressor decompressor(mFile, mRaw);
-    decompressor.uncorrectedRawValues = uncorrectedRawValues;
+    NikonDecompressor* decompressor = new NikonDecompressor(mFile, mRaw);
+    decompressor->uncorrectedRawValues = uncorrectedRawValues;
     ByteStream* metastream;
     if (getHostEndianness() == data[0]->endian)
       metastream = new ByteStream(meta->getData(), meta->count);
     else
       metastream = new ByteStreamSwap(meta->getData(), meta->count);
 
-    decompressor.DecompressNikon(metastream, width, height, bitPerPixel, offsets->getInt(), counts->getInt());
+    decompressor->DecompressNikon(metastream, width, height, bitPerPixel, offsets->getInt(), counts->getInt());
 
     delete metastream;
+    delete decompressor;
   } catch (IOException &e) {
     mRaw->setError(e.what());
     // Let's ignore it, it may have delivered somewhat useful data.
@@ -372,10 +373,7 @@ void NefDecoder::checkSupportInternal(CameraMetaData *meta) {
 
   if (meta->hasCamera(make, model, extended_mode))
     this->checkCameraSupported(meta, make, model, extended_mode);
-  else if (meta->hasCamera(make, model, mode))
-    this->checkCameraSupported(meta, make, model, mode);
-  else
-    this->checkCameraSupported(meta, make, model, "");
+  else this->checkCameraSupported(meta, make, model, mode);
 }
 
 string NefDecoder::getMode() {
@@ -575,7 +573,7 @@ void NefDecoder::decodeMetaDataInternal(CameraMetaData *meta) {
 
   if (white != 65536)
     mRaw->whitePoint = white;
-  if (black >= 0 && hints.find(string("nikon_override_auto_black")) == hints.end())
+  if (black != -1)
     mRaw->blackLevel = black;
 }
 

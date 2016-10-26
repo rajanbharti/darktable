@@ -1,8 +1,5 @@
-cmake_minimum_required(VERSION 2.8.5)
-
-cmake_policy(SET CMP0011 NEW)
-
 include(CheckCCompilerFlag)
+include(CheckCXXCompilerFlag)
 include(CheckCSourceCompiles)
 
 #
@@ -15,6 +12,7 @@ FILE(GLOB SOURCE_FILES
   "common/cache.c"
   "common/calculator.c"
   "common/collection.c"
+  "common/color_picker.c"
   "common/colorlabels.c"
   "common/colorspaces.c"
   "common/curve_tools.c"
@@ -22,6 +20,7 @@ FILE(GLOB SOURCE_FILES
   "common/darktable.c"
   "common/database.c"
   "common/dbus.c"
+  "common/dtpthread.c"
   "common/exif.cc"
   "common/film.c"
   "common/file_location.c"
@@ -59,6 +58,7 @@ FILE(GLOB SOURCE_FILES
   "common/dynload.c"
   "common/dlopencl.c"
   "common/ratings.c"
+  "common/resource_limits.c"
   "common/histogram.c"
   "control/control.c"
   "control/crawler.c"
@@ -78,6 +78,7 @@ FILE(GLOB SOURCE_FILES
   "develop/blend_gui.c"
   "develop/tiling.c"
   "develop/masks/masks.c"
+  "develop/format.c"
   "dtgtk/button.c"
   "dtgtk/drawingarea.c"
   "dtgtk/expander.c"
@@ -115,7 +116,22 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external)
 
 # initial compiler flags
 add_definitions("-DHAVE_CONFIG_H")
+
+CHECK_C_COMPILER_FLAG("-std=c99" COMPILER_SUPPORTS_C99)
+if(NOT COMPILER_SUPPORTS_C99)
+        message(FATAL_ERROR "The compiler ${CMAKE_C_COMPILER} has no C99 support. Please use a different C compiler.")
+endif()
+
+CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+if(NOT COMPILER_SUPPORTS_CXX11)
+        message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+endif()
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+if(APPLE)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+endif(APPLE)
 
 # Check for openmp
 find_package(OpenMP)
@@ -207,23 +223,11 @@ foreach(lib ${OUR_LIBS} LensFun GIO GThread GModule PangoCairo PThread Rsvg2 Lib
   add_definitions(${${lib}_DEFINITIONS})
 endforeach(lib)
 
-# Require exiv2 >= 0.23 to make sure everything we need is available
-find_package(Exiv2 0.23 REQUIRED)
+# Require exiv2 >= 0.24 to make sure everything we need is available
+find_package(Exiv2 0.24 REQUIRED)
 include_directories(SYSTEM ${Exiv2_INCLUDE_DIRS})
 list(APPEND LIBS ${Exiv2_LIBRARIES})
 add_definitions(${Exiv2_DEFINITIONS})
-
-if(USE_NLS)
-  find_package(Gettext)
-  if(Gettext_FOUND)
-    include_directories(SYSTEM ${Gettext_INCLUDE_DIRS})
-    list(APPEND LIBS ${Gettext_LIBRARIES})
-    add_definitions("-DUSE_GETTEXT")
-    message(STATUS "Internationalization: Enabled")
-  else()
-    message(STATUS "Internationalization: Disabled (libintl not found)")
-  endif()
-endif(USE_NLS)
 
 if(USE_FLICKR)
   find_package(FLICKCURL)
@@ -351,11 +355,15 @@ if(HAVE_BUILTIN_CPU_SUPPORTS)
 endif(HAVE_BUILTIN_CPU_SUPPORTS)
 MESSAGE(STATUS "Does the compiler support __builtin_cpu_supports(): ${HAVE_BUILTIN_CPU_SUPPORTS}")
 
-#
-# Set default compile flags for GCC
-#
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fno-strict-aliasing")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fno-strict-aliasing")
+check_c_source_compiles("
+static __thread int tls;
+int main(void)
+{
+  return 0;
+}" HAVE_TLS)
+if(NOT HAVE_TLS)
+  MESSAGE(FATAL_ERROR "The compiler does not support Thread-local storage.")
+endif()
 
 if(NOT WIN32)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
@@ -388,25 +396,7 @@ if(NOT CUSTOM_CFLAGS)
     set(DT_REQ_INSTRUCTIONS "-msse2")
   endif()
 
-  if(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
-    set(MARCH "-msse4.2")
-  elseif(NOT BINARY_PACKAGE_BUILD AND (NOT APPLE OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
-    MESSAGE("-- Checking for -march=native support")
-    CHECK_C_COMPILER_FLAG("-march=native" MARCHNATIVE)
-    if (MARCHNATIVE)
-      set(MARCH "-march=native")
-    else()
-      MESSAGE("-- Checking for -mtune=native support")
-      CHECK_C_COMPILER_FLAG("-mtune=native" MTUNENATIVE)
-      if (MTUNENATIVE)
-        set(MARCH "-mtune=native")
-      else()
-        set(MARCH "-mtune=generic")
-      endif()
-    endif()
-  else()
-    set(MARCH "-mtune=generic")
-  endif()
+  include(march-mtune)
 
   #if(NOT BUILD_SSE2_CODEPATHS)
   #  set(MARCH "${MARCH} -mno-sse2 -D__DISABLE_SSE2__ -U__SSE2__ -D__DISABLE_SSE__ -U__SSE__")
@@ -446,10 +436,10 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_DEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG")
 
 #
-# Generate config.h and version.h. they are split so that a change to version.h isn't recompiling half of dt
+# Generate config.h
 #
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.h" "${CMAKE_CURRENT_BINARY_DIR}/config.h" @ONLY)
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.cmake.h" "${CMAKE_CURRENT_BINARY_DIR}/version.h" @ONLY)
+
 include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
 
 #
@@ -513,6 +503,7 @@ if(USE_LUA)
       "lua/widget/separator.c"
       "lua/widget/slider.c"
       "lua/widget/stack.c"
+      "lua/widget/text_view.c"
       )
     set(SOURCES ${SOURCES} ${SOURCE_FILES_LUA})
   endif(USE_LUA)
@@ -520,18 +511,28 @@ else(USE_LUA)
   message(STATUS "Lua support: Disabled")
 endif(USE_LUA)
 
+if(USE_LUA)
+  if(NOT LUA52_FOUND)
+    list(APPEND LIB_DEPS lua) # 2nd half of the uglyness :/
+  endif(NOT LUA52_FOUND)
+  # liblautoc for lua automated interface generation
+  add_library(lautoc_static STATIC IMPORTED)
+  set_target_properties(lautoc_static PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/external/LuaAutoC/liblautoc.a POSITION_INDEPENDENT_CODE True)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/LuaAutoC/)
+  add_subdirectory(external/LuaAutoC)
+  list(APPEND LIB_DEPS lautoc)
+  list(APPEND STATIC_LIBS lautoc_static)
+endif(USE_LUA)
+
 find_package(Pugixml 1.2 REQUIRED)
 include_directories(SYSTEM ${Pugixml_INCLUDE_DIRS})
 list(APPEND LIBS ${Pugixml_LIBRARIES})
 
-#
-# the rawspeed part is a bit of a hack:
-# the static linking didn't work since it was pulling -lstdc++ and -lm into linker flags.
-# so we do a custom dependency and pretend an imported librawsped.a so no other -l are
-# appended.
-#
-add_library(rawspeed_static STATIC IMPORTED)
-set_target_properties(rawspeed_static PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/external/rawspeed/librawspeed.a)
+if(NOT SOURCE_PACKAGE AND NOT APPLE)
+  # apple build fails on deprecated warnings..
+  add_definitions(-Werror)
+endif()
+
 # compile rawspeed
 add_subdirectory(external/rawspeed)
 list(APPEND LIB_DEPS rawspeed)
@@ -584,31 +585,16 @@ if(USE_COLORD)
   endif(COLORD_FOUND)
 endif(USE_COLORD)
 
-if(USE_LUA)
-  if(NOT LUA52_FOUND)
-    list(APPEND LIB_DEPS liblua) # 2nd half of the uglyness :/
-  endif(NOT LUA52_FOUND)
-  # liblautoc for lua automated interface generation
-  add_library(lautoc_static STATIC IMPORTED)
-  set_target_properties(lautoc_static PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/external/LuaAutoC/liblautoc.a)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/LuaAutoC/)
-  add_subdirectory(external/LuaAutoC)
-  list(APPEND LIB_DEPS lautoc)
-  list(APPEND STATIC_LIBS lautoc_static)
-endif(USE_LUA)
-
 if(BUILD_PRINT)
-  find_package(CUPS)
+  find_package(Cups)
   if(CUPS_FOUND)
-    include_directories(SYSTEM ${CUPS_INCLUDE_DIRS})
-    add_definitions(${CUPS_DEFINITIONS})
+    include_directories(SYSTEM ${CUPS_INCLUDE_DIR})
     FILE(GLOB SOURCE_FILES_PRINT
       "common/cups_print.h"
       "common/cups_print.c"
       "common/printprof.c"
       )
     set(SOURCES ${SOURCES} ${SOURCE_FILES_PRINT})
-    add_library(cups_static STATIC IMPORTED)
     list(APPEND LIBS ${CUPS_LIBRARIES})
     add_definitions("-DHAVE_PRINT")
     message(STATUS "Print mode: enabled")
@@ -621,73 +607,12 @@ else(BUILD_PRINT)
 endif(BUILD_PRINT)
 
 #
-# We need C++11
-#
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-	if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.7)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-	else()
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-	endif()
-else()
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-endif()
-
-#
 # set development flags for our code
 #
-if(NOT SOURCE_PACKAGE AND NOT APPLE)
-  # apple build fails on deprecated warnings..
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=type-limits -Werror=format-security")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Werror=type-limits -Werror=format-security")
-
-  if(NOT (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS 5.0))
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=shadow")
-  endif()
-  if(NOT (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0))
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=shadow")
-  endif()
-elseif(SOURCE_PACKAGE)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_RELEASE")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_RELEASE")
+if(DT_CMAKE_INCLUDE_WHAT_YOU_USE)
+  set(CMAKE_C_INCLUDE_WHAT_YOU_USE ${DT_CMAKE_INCLUDE_WHAT_YOU_USE})
+  set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE ${DT_CMAKE_INCLUDE_WHAT_YOU_USE})
 endif()
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=varargs")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=varargs")
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-endif()
-
-###### GTK+3 port ######
-#
-#  Do not include individual headers
-#
-add_definitions("-DGTK_DISABLE_SINGLE_INCLUDES")
-
-#
-# Dirty hack to enforce GTK3 behaviour in GTK2: "Replace GDK_<keyname> with GDK_KEY_<keyname>"
-#
-add_definitions("-D__GDK_KEYSYMS_COMPAT_H__")
-
-#
-#  Do not use deprecated symbols
-#
-add_definitions("-DGDK_DISABLE_DEPRECATED")
-add_definitions("-DGTK_DISABLE_DEPRECATED")
-add_definitions("-Werror=implicit-function-declaration")
-###### GTK+3 port ######
-
-###### Some good warnings ######
-# Clang-specific warnings:
-if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-#  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ")
-endif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-
-# Generic (gcc) warnings:
-if(CMAKE_C_COMPILER_ID STREQUAL "GCC")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wold-style-declaration")
-endif(CMAKE_C_COMPILER_ID STREQUAL "GCC")
-###### Some good warnings ######
 
 #
 # Setup generation of preference dialog files..
@@ -739,7 +664,12 @@ add_custom_target(
 #
 # build libdarktable
 #
-add_library(lib_darktable SHARED ${CMAKE_CURRENT_BINARY_DIR}/preferences_gen.h ${CMAKE_CURRENT_BINARY_DIR}/metadata_gen.h ${CMAKE_CURRENT_BINARY_DIR}/metadata_gen.c ${SOURCES})
+add_library(lib_darktable SHARED ${CMAKE_CURRENT_BINARY_DIR}/preferences_gen.h ${CMAKE_CURRENT_BINARY_DIR}/metadata_gen.h ${CMAKE_CURRENT_BINARY_DIR}/metadata_gen.c ${CMAKE_BINARY_DIR}/src/version_gen.c ${SOURCES})
+
+# cmake implicitly sets GENERATED on the source file in the directory of the custom command
+# since this isn't the same directory we do have to manually set it
+set_source_files_properties(${CMAKE_BINARY_DIR}/src/version_gen.c PROPERTIES GENERATED TRUE)
+
 add_dependencies(lib_darktable generate_version)
 add_dependencies(lib_darktable generate_preferences)
 add_dependencies(lib_darktable generate_metadata)
@@ -758,6 +688,10 @@ add_dependencies(lib_darktable ${LIB_DEPS})
 target_link_libraries(lib_darktable ${STATIC_LIBS})
 target_link_libraries(lib_darktable ${LIBS})
 
+unset(LIBS)
+unset(STATIC_LIBS)
+unset(LIB_DEPS)
+
 #
 # Install lib_darktable
 #
@@ -767,9 +701,6 @@ if(WIN32)
 else(WIN32)
   install(TARGETS lib_darktable DESTINATION ${CMAKE_INSTALL_LIBDIR}/darktable)
 endif(WIN32)
-
-# make sure static libs is first
-list(INSERT LIBS 0 lib_darktable ${STATIC_LIBS})
 
 # Compile views modules
 add_subdirectory(views)
@@ -815,15 +746,9 @@ endif(BUILD_SLIDESHOW)
 # build darktable executable
 #
 add_executable(darktable ${SUBSYSTEM_MACOSX} ${SUBSYSTEM_WIN32} main.c ${RESOURCE_OBJECT})
-if(NOT WIN32)
-  # Windows doesn't know the concept of RPATHs :(
-  set_target_properties(darktable PROPERTIES CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-  set_target_properties(darktable PROPERTIES CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
-  set_target_properties(darktable PROPERTIES INSTALL_RPATH ${RPATH_DT}/../${CMAKE_INSTALL_LIBDIR}/darktable)
-endif(NOT WIN32)
 set_target_properties(darktable PROPERTIES LINKER_LANGUAGE C)
 if(APPLE)
   set_target_properties(lib_darktable PROPERTIES LINK_FLAGS "-framework Carbon -framework AppKit")
 endif(APPLE)
-target_link_libraries(darktable ${LIBS})
+target_link_libraries(darktable lib_darktable)
 install(TARGETS darktable DESTINATION ${CMAKE_INSTALL_BINDIR})

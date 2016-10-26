@@ -1,9 +1,7 @@
-cmake_minimum_required(VERSION 2.8.5)
-
 #
 # Install Doc files
 #
-set(DOC_FILES README AUTHORS TRANSLATORS LICENSE)
+set(DOC_FILES README AUTHORS TRANSLATORS ../LICENSE)
 install(FILES ${DOC_FILES} DESTINATION ${CMAKE_INSTALL_DOCDIR})
 
 # create config docs
