@@ -517,7 +517,8 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
       int alignment = ((4 - (j * roi_out->width & (4 - 1))) & (4 - 1));
 
       // process unaligned pixels
-      for(; i < alignment; i++, out++, in++) *out = *in * d->coeffs[FCxtrans(j, i, roi_out, xtrans)];
+      for(; i < alignment && i < roi_out->width; i++, out++, in++)
+        *out = *in * d->coeffs[FCxtrans(j, i, roi_out, xtrans)];
 
       const __m128 coeffs[3] = {
         _mm_set_ps(d->coeffs[FCxtrans(j, i + 3, roi_out, xtrans)], d->coeffs[FCxtrans(j, i + 2, roi_out, xtrans)],
@@ -557,7 +558,7 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
       int alignment = ((4 - (j * roi_out->width & (4 - 1))) & (4 - 1));
 
       // process unaligned pixels
-      for(; i < alignment; i++, out++, in++)
+      for(; i < alignment && i < roi_out->width; i++, out++, in++)
         *out = *in * d->coeffs[FC(j + roi_out->y, i + roi_out->x, filters)];
 
       const __m128 coeffs = _mm_set_ps(d->coeffs[FC(j + roi_out->y, roi_out->x + i + 3, filters)],
@@ -672,7 +673,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   dt_opencl_release_mem_object(dev_xtrans);
 
   piece->pipe->dsc.temperature.enabled = 1;
-  for(int k = 0; k < 3; k++)
+  for(int k = 0; k < 4; k++)
   {
     piece->pipe->dsc.temperature.coeffs[k] = d->coeffs[k];
     piece->pipe->dsc.processed_maximum[k] = d->coeffs[k] * piece->pipe->dsc.processed_maximum[k];
@@ -1073,7 +1074,7 @@ void init(dt_iop_module_t *module)
 {
   module->params = calloc(1, sizeof(dt_iop_temperature_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_temperature_params_t));
-  module->priority = 46; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 44; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_temperature_params_t);
   module->gui_data = NULL;
 }

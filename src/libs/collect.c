@@ -360,10 +360,14 @@ static void view_popup_menu(GtkWidget *treeview, GdkEventButton *event, dt_lib_c
 
   gtk_widget_show_all(menu);
 
+#if GTK_CHECK_VERSION(3, 22, 0)
+  gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *)event);
+#else
   /* Note: event can be NULL here when called from view_onPopupMenu;
    *  gdk_event_get_time() accepts a NULL argument */
   gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, (event != NULL) ? event->button : 0,
                  gdk_event_get_time((GdkEvent *)event));
+#endif
 }
 
 static gboolean view_onButtonPressed(GtkWidget *treeview, GdkEventButton *event, dt_lib_collect_t *d)
@@ -1492,10 +1496,6 @@ static void filmrolls_imported(gpointer instance, int film_id, gpointer self)
   dt_lib_module_t *dm = (dt_lib_module_t *)self;
   dt_lib_collect_t *d = (dt_lib_collect_t *)dm->data;
 
-  // reset active rules
-  d->active_rule = 0;
-  dt_conf_set_int("plugins/lighttable/collect/num_rules", 1);
-  dt_conf_set_int("plugins/lighttable/collect/item0", DT_COLLECTION_PROP_FILMROLL);
   // update tree
   d->view_rule = -1;
   d->rule[d->active_rule].typing = FALSE;
@@ -1507,11 +1507,6 @@ static void filmrolls_removed(gpointer instance, gpointer self)
   dt_lib_module_t *dm = (dt_lib_module_t *)self;
   dt_lib_collect_t *d = (dt_lib_collect_t *)dm->data;
 
-  // reset active rules
-  d->active_rule = 0;
-  dt_conf_set_int("plugins/lighttable/collect/num_rules", 1);
-  dt_conf_set_int("plugins/lighttable/collect/item0", DT_COLLECTION_PROP_FILMROLL);
-  dt_conf_set_string("plugins/lighttable/collect/string0", "");
   // update tree
   d->view_rule = -1;
   d->rule[d->active_rule].typing = FALSE;
@@ -1619,7 +1614,12 @@ static gboolean popup_button_callback(GtkWidget *widget, GdkEventButton *event, 
     g_signal_connect(G_OBJECT(mi), "activate", G_CALLBACK(menuitem_change_and_not), d);
   }
 
+#if GTK_CHECK_VERSION(3, 22, 0)
+  gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *)event);
+#else
   gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, event->button, event->time);
+#endif
+
   gtk_widget_show_all(menu);
 
   return TRUE;

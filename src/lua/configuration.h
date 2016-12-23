@@ -15,8 +15,9 @@
    You should have received a copy of the GNU General Public License
    along with darktable.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef LUA_CONFIGURATION_H
-#define LUA_CONFIGURATION_H
+
+#pragma once
+
 #include <lua/lua.h>
 
 /*
@@ -31,6 +32,7 @@
 // 1.6 was 2.0.1
 // 1.6.1 was 2.0.2
 // 2.0.0 was 3.0.0
+// 2.2.0 was 4.0.0
 /* incompatible API change */
 #define LUA_API_VERSION_MAJOR 4
 /* backward compatible API change */
@@ -38,11 +40,11 @@
 /* bugfixes that should not change anything to the API */
 #define LUA_API_VERSION_PATCH 0
 /* suffix for unstable version */
-#define LUA_API_VERSION_SUFFIX "dev"
+#define LUA_API_VERSION_SUFFIX ""
 
 /** initialize lua stuff at DT start time */
 int dt_lua_init_configuration(lua_State *L);
-#endif
+
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;

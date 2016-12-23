@@ -14,6 +14,9 @@ If(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
   message(FATAL_ERROR "In-source builds are not permitted. Make a separate folder for building:\nmkdir build; cd build; cmake ..\nBefore that, remove the files already created:\nrm -rf CMakeCache.txt CMakeFiles")
 endif(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+
 project(darktable CXX C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -57,7 +60,6 @@ option(USE_FLICKR "Enable Flickr support" ON)
 option(USE_KWALLET "Build kwallet password storage back-end" ON)
 option(USE_LIBSECRET "Build libsecret password storage back-end" ON)
 option(USE_UNITY "Use libunity to report progress in the launcher" OFF)
-option(BUILD_SLIDESHOW "Build the opengl slideshow viewer" ON)
 option(USE_OPENMP "Use openmp threading support." ON)
 option(USE_OPENCL "Use OpenCL support." ON)
 option(USE_GRAPHICSMAGICK "Use GraphicsMagick library for image import." ON)
@@ -74,6 +76,12 @@ option(BUILD_PRINT "Build the print module" ON)
 option(BUILD_RS_IDENTIFY "Build the darktable-rs-identify debug aid" ON)
 option(BUILD_SSE2_CODEPATHS "(EXPERIMENTAL OPTION, DO NOT DISABLE) Building SSE2-optimized codepaths" ON)
 option(VALIDATE_APPDATA_FILE "Use appstream-util (if found) to validate the .appdata file" OFF)
+
+if(USE_OPENCL)
+  option(TESTBUILD_OPENCL_PROGRAMS "Test-compile opencl programs (needs llvm and clang 3.9+)" ON)
+else()
+  set(TESTBUILD_OPENCL_PROGRAMS OFF)
+endif()
 
 if(BUILD_SSE2_CODEPATHS)
   CHECK_C_COMPILER_FLAG("-msse2" _MSSE2)
@@ -129,7 +137,6 @@ endif()
 #
 if(APPLE)
 	message("-- Mac OS X build detected, setting default features")
-	set(BUILD_SLIDESHOW OFF)
 
 	# prefer macports and/or user-installed libraries over system ones
 	LIST(APPEND CMAKE_PREFIX_PATH /opt/local /usr/local)
@@ -144,12 +151,7 @@ if(APPLE)
 	add_definitions("-DOS_OBJECT_USE_OBJC=0")
 endif(APPLE)
 
-if(CMAKE_COMPILER_IS_GNUCC)
-  if (CMAKE_C_COMPILER_VERSION VERSION_LESS 4.3)
-		message("-- Disabling OpenMP because GCC is 4.2 or older!")
-		set(USE_OPENMP OFF)
-  endif()
-endif()
+include(compiler-versions)
 
 if(WIN32)
   message("-- Win32 build detected, setting default features")
@@ -210,7 +212,7 @@ else(DEFINED PROJECT_VERSION)
     else(NOT EXISTS ${CMAKE_SOURCE_DIR}/src/version_gen.c)
       # no need to create version_gen.c if it's already shipped. that is for example the case with our release tarballs
       execute_process(
-        COMMAND ${CMAKE_SOURCE_DIR}/tools/parse_version_h.sh ${CMAKE_SOURCE_DIR}/src/version_gen.c OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND ${CMAKE_SOURCE_DIR}/tools/parse_version_c.sh ${CMAKE_SOURCE_DIR}/src/version_gen.c OUTPUT_STRIP_TRAILING_WHITESPACE
         OUTPUT_VARIABLE PROJECT_VERSION
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       )
@@ -241,9 +243,6 @@ add_custom_target(
   DEPENDS ${CMAKE_BINARY_DIR}/src/version_gen.c
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 # Add a sensible build type default and warning because empty means no optimization and no debug info.
 if(NOT CMAKE_BUILD_TYPE)
@@ -317,6 +316,50 @@ if(VALIDATE_APPDATA_FILE)
     message(STATUS "Found appstream-util")
   endif(${appstream_util_BIN} STREQUAL "appstream_util_BIN-NOTFOUND")
 endif(VALIDATE_APPDATA_FILE)
+
+if(TESTBUILD_OPENCL_PROGRAMS)
+  set(TESTBUILD_OPENCL_PROGRAMS OFF)
+
+  # 3.9 is the first version with which this works.
+  find_package(LLVM 3.9 CONFIG)
+  if (LLVM_FOUND)
+    message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+
+    find_program(CLANG_OPENCL_COMPILER
+      NAMES clang-${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR} clang-${LLVM_PACKAGE_VERSION}
+    )
+
+    if (NOT ${CLANG_OPENCL_COMPILER} STREQUAL "CLANG_OPENCL_COMPILER-NOTFOUND")
+      message(STATUS "Found clang compiler - ${CLANG_OPENCL_COMPILER}")
+
+      find_path(CLANG_OPENCL_INCLUDE_DIR opencl-c.h
+        HINTS ${LLVM_INSTALL_PREFIX}/lib/clang
+        PATH_SUFFIXES include ${LLVM_PACKAGE_VERSION}/include
+        NO_DEFAULT_PATH
+      )
+
+      if (NOT ${CLANG_OPENCL_INCLUDE_DIR} STREQUAL "CLANG_OPENCL_INCLUDE_DIR-NOTFOUND")
+        message(STATUS "Found clang opencl-c.h header in ${CLANG_OPENCL_INCLUDE_DIR}")
+        set(TESTBUILD_OPENCL_PROGRAMS ON)
+      else()
+        message(WARNING "Could not find clang opencl-c.h header include dir")
+        message(WARNING "Test-compilation of OpenCL programs can not be done.")
+      endif()
+    else()
+      message(WARNING "Could not find appropriate clang compiler")
+      message(WARNING "Test-compilation of OpenCL programs can not be done.")
+    endif()
+  else()
+    message(WARNING "Could not find LLVM 3.9+")
+    message(WARNING "Test-compilation of OpenCL programs can not be done.")
+  endif()
+endif()
+
+if(USE_OPENCL AND TESTBUILD_OPENCL_PROGRAMS)
+  message(STATUS "Will be able to test-compile OpenCL programs. Nice.")
+elseif(USE_OPENCL)
+  message(STATUS "Test-compilation of OpenCL programs is disabled.")
+endif()
 
 # we need jsonschema to check noiseprofiles.json
 find_program(jsonschema_BIN jsonschema)

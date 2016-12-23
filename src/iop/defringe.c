@@ -167,13 +167,13 @@ void process(struct dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, cons
   int height = roi_in->height;
 
   dt_gaussian_t *gauss = NULL;
-  gauss = dt_gaussian_init(width, height, ch, Labmax, Labmin, sigma, order);
+  gauss = dt_gaussian_init(width, height, 4, Labmax, Labmin, sigma, order);
   if(!gauss)
   {
     fprintf(stderr, "Error allocating memory for gaussian blur in: defringe module\n");
     goto ERROR_EXIT;
   }
-  dt_gaussian_blur(gauss, in, out);
+  dt_gaussian_blur_4c(gauss, in, out);
   dt_gaussian_free(gauss);
 
   int samples_wish = radius * radius;
@@ -395,7 +395,7 @@ void init(dt_iop_module_t *module)
 {
   module->params = calloc(1, sizeof(dt_iop_defringe_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_defringe_params_t));
-  module->priority = 400; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 388; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_defringe_params_t);
   module->gui_data = NULL;
   module->data = NULL;

@@ -108,7 +108,7 @@ install(FILES gdb_commands DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/darktable)
 if(${VALIDATE_JSON})
   add_custom_target(
     validate_noiseprofiles_json ALL
-    COMMAND ${jsonschema_BIN} -i ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.json ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.schema
+    COMMAND ${CMAKE_COMMAND} -E env LANG=C.UTF-8 ${jsonschema_BIN} -i ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.json ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.schema
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.json ${CMAKE_CURRENT_SOURCE_DIR}/noiseprofiles.schema
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
     COMMENT "Checking validity of noiseprofiles.json"
@@ -152,7 +152,7 @@ configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/darktableconfig.xml.in ${CMAKE_CURRE
 if(USE_XMLLINT)
   add_custom_target(
     validate_darktableconfig_xml ALL
-    COMMAND ${Xmllint_BIN} --valid --noout ${CMAKE_CURRENT_BINARY_DIR}/darktableconfig.xml
+    COMMAND ${Xmllint_BIN} --nonet --valid --noout ${CMAKE_CURRENT_BINARY_DIR}/darktableconfig.xml
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/darktableconfig.xml
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
     COMMENT "Checking validity of data/darktableconfig.xml"
@@ -163,7 +163,7 @@ if(NOT ${Xsltproc_BIN} STREQUAL "Xsltproc_BIN-NOTFOUND")
   add_custom_command(
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_darktablerc.xsl ${CMAKE_CURRENT_BINARY_DIR}/darktableconfig.dtd ${CMAKE_CURRENT_BINARY_DIR}/darktableconfig.xml
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/darktablerc
-    COMMAND ${Xsltproc_BIN} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_darktablerc.xsl ${CMAKE_CURRENT_BINARY_DIR}/darktableconfig.xml > ${CMAKE_CURRENT_BINARY_DIR}/darktablerc
+    COMMAND ${Xsltproc_BIN} --nonet ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_darktablerc.xsl ${CMAKE_CURRENT_BINARY_DIR}/darktableconfig.xml > ${CMAKE_CURRENT_BINARY_DIR}/darktablerc
   )
 else(NOT ${Xsltproc_BIN} STREQUAL "Xsltproc_BIN-NOTFOUND")
   if(NOT ${Saxon_BIN} STREQUAL "Saxon_BIN-NOTFOUND")

@@ -29,7 +29,7 @@ export CAMLIBS="$(echo "$bundle_lib"/libgphoto2/*/)"
 
 export CURL_CA_BUNDLE="$bundle_data"/curl/curl-ca-bundle.crt
 
-APP="$name"
+APP=darktable
 I18NDIR="$bundle_data"/locale
 # Set the locale-related variables appropriately:
 unset LANG LC_MESSAGES LC_COLLATE

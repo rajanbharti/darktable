@@ -447,6 +447,15 @@ int distort_transform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, floa
     points[i + 1] = po[1] - (d->ciy - d->enlarge_y) / factor;
   }
 
+  // revert side-effects of the previous call to modify_roi_out
+  // TODO: this is just a quick hack. we need a major revamp of this module!
+  if(factor != 1.0f)
+  {
+    roi_in.width = piece->buf_in.width;
+    roi_in.height = piece->buf_in.height;
+    self->modify_roi_out(self, piece, &roi_out, &roi_in);
+  }
+
   return 1;
 }
 int distort_backtransform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, float *points,
@@ -499,6 +508,15 @@ int distort_backtransform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, 
 
     points[i] = po[0];
     points[i + 1] = po[1];
+  }
+
+  // revert side-effects of the previous call to modify_roi_out
+  // TODO: this is just a quick hack. we need a major revamp of this module!
+  if(factor != 1.0f)
+  {
+    roi_in.width = piece->buf_in.width;
+    roi_in.height = piece->buf_in.height;
+    self->modify_roi_out(self, piece, &roi_out, &roi_in);
   }
 
   return 1;
@@ -1671,7 +1689,7 @@ void init(dt_iop_module_t *module)
   module->default_enabled = 0;
   module->params_size = sizeof(dt_iop_clipping_params_t);
   module->gui_data = NULL;
-  module->priority = 446; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 447; // module order created by iop_dependencies.py, do not edit!
 }
 
 void cleanup(dt_iop_module_t *module)

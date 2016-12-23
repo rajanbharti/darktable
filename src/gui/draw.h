@@ -15,8 +15,9 @@
     You should have received a copy of the GNU General Public License
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef DT_GUI_DRAW_H
-#define DT_GUI_DRAW_H
+
+#pragma once
+
 /** some common drawing routines. */
 
 #ifdef HAVE_CONFIG_H
@@ -226,8 +227,8 @@ static inline int dt_draw_curve_add_point(dt_draw_curve_t *c, const float x, con
 static inline void dt_draw_histogram_8_linear(cairo_t *cr, uint32_t *hist, int32_t channel)
 {
   cairo_move_to(cr, 0, 0);
-  for(int k = 0; k < 64; k++) cairo_line_to(cr, k, hist[4 * k + channel]);
-  cairo_line_to(cr, 63, 0);
+  for(int k = 0; k < 256; k++) cairo_line_to(cr, k, hist[4 * k + channel]);
+  cairo_line_to(cr, 255, 0);
   cairo_close_path(cr);
   cairo_fill(cr);
 }
@@ -235,8 +236,8 @@ static inline void dt_draw_histogram_8_linear(cairo_t *cr, uint32_t *hist, int32
 static inline void dt_draw_histogram_8_log(cairo_t *cr, uint32_t *hist, int32_t channel)
 {
   cairo_move_to(cr, 0, 0);
-  for(int k = 0; k < 64; k++) cairo_line_to(cr, k, logf(1.0 + hist[4 * k + channel]));
-  cairo_line_to(cr, 63, 0);
+  for(int k = 0; k < 256; k++) cairo_line_to(cr, k, logf(1.0 + hist[4 * k + channel]));
+  cairo_line_to(cr, 255, 0);
   cairo_close_path(cr);
   cairo_fill(cr);
 }
@@ -276,8 +277,6 @@ static inline void dt_draw_cairo_to_gdk_pixbuf(uint8_t *data, unsigned int width
       }
     }
 }
-
-#endif
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
